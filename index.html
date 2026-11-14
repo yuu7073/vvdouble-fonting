@@ -97,7 +97,8 @@ nav button.on{color:var(--accent)}
 .tb.on .stA{background:#1c1b19;color:#fff;outline:1px solid #fff}
 .ed-panel{background:var(--card);border-radius:16px;padding:14px;min-height:150px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
 .ed-panel .pn{display:none}
-.ed-panel textarea{width:100%;min-height:120px;border:2px solid var(--line);border-radius:12px;padding:12px 14px;font-size:16px;line-height:1.5;font-family:inherit;resize:vertical;outline:0;background:var(--bg)}
+.ta-wrap{position:relative}.ta-btns{position:absolute;top:8px;right:8px;display:flex;gap:6px}.ta-b{height:34px;padding:0 12px;border-radius:10px;border:0;background:#e9e7e2;font-size:13px;font-weight:600;color:var(--ink)}.ta-b.pri{background:var(--ink);color:#fff}
+.ed-panel textarea{width:100%;min-height:140px;border:2px solid var(--line);border-radius:12px;padding:50px 14px 12px;font-size:16px;line-height:1.5;font-family:inherit;resize:vertical;outline:0;background:var(--bg)}
 .ed-panel textarea:focus{border-color:var(--ink)}
 .ed-panel .sec{margin-top:0}
 .subtabs{display:flex;gap:14px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none}
@@ -200,7 +201,7 @@ nav button.on{color:var(--accent)}
 
       <div class="ed-panel">
         <!-- 文字 -->
-        <div class="pn" data-t="text"><textarea id="ftext" rows="4" placeholder="輸入文字，可換行" oninput="ED.set('text',this.value)"></textarea></div>
+        <div class="pn" data-t="text"><div class="ta-wrap"><textarea id="ftext" rows="4" placeholder="輸入文字，可換行" oninput="ED.set('text',this.value)"></textarea><div class="ta-btns"><button class="ta-b" onclick="ED.pasteText()">貼上</button><button class="ta-b pri" onclick="ED.pasteCopy()">貼上並複製圖片</button></div></div></div>
         <!-- 範本 -->
         <div class="pn" data-t="tpl"><div class="tpls" id="tpls"></div></div>
         <!-- 字型 -->
@@ -386,8 +387,8 @@ const ED=(()=>{
   const TPL=[
     {n:'白字',s:{mode:'none',color:'#ffffff'}},
     {n:'黑字',s:{mode:'none',color:'#1c1b19'}},
-    {n:'白底黑字',s:{mode:'box',color:'#1c1b19',box:'#ffffff',pad:24,rad:0,op:100}},
-    {n:'黑底白字',s:{mode:'box',color:'#ffffff',box:'#1c1b19',pad:24,rad:0,op:100}},
+    {n:'白底黑字',s:{mode:'box',color:'#1c1b19',box:'#ffffff',pad:14,rad:0,op:100}},
+    {n:'黑底白字',s:{mode:'box',color:'#ffffff',box:'#1c1b19',pad:14,rad:0,op:100}},
     {n:'莫蘭迪綠框',s:{mode:'box',color:'#ffffff',box:'#8fa38a',pad:28,rad:8,op:90}},
     {n:'粉膚框',s:{mode:'box',color:'#3d405b',box:'#e5989b',pad:28,rad:24,op:90}},
     {n:'白邊黑字',s:{mode:'stroke',color:'#1c1b19',box:'#ffffff',sw:14}},
@@ -395,7 +396,7 @@ const ED=(()=>{
     {n:'陰影白字',s:{mode:'shadow',color:'#ffffff',box:'#1c1b19',op:60}},
     {n:'直排宋體',s:{dir:'v',font:'song',mode:'none',color:'#ffffff'}},
   ];
-  const DEF={text:'這次聯名的單品\n滿滿日系元素 ✧',font:'fan400',color:'#ffffff',box:'#8fa38a',op:90,mode:'box',dir:'h',align:'c',size:96,lh:140,ls:4,pad:24,rad:6,sw:12};
+  const DEF={text:'這次聯名的單品\n滿滿日系元素 ✧',font:'fan400',color:'#1c1b19',box:'#ffffff',op:100,mode:'box',dir:'h',align:'c',size:96,lh:140,ls:4,pad:14,rad:0,sw:12};
   let S=Object.assign({},DEF,LS('ed_state')||{});
   let hist=[JSON.stringify(S)],hi=0,curTab='text',fontTab='全部',favFonts=LS('ed_favfonts')||[],imported=[],previewDark=true,drawT;
   const $=id=>document.getElementById(id);
@@ -421,6 +422,9 @@ const ED=(()=>{
   function undo(){if(hi>0){hi--;S=JSON.parse(hist[hi]);syncUI();draw()}}
   function redo(){if(hi<hist.length-1){hi++;S=JSON.parse(hist[hi]);syncUI();draw()}}
   function clear(){set('text','');tab('text');$('ftext').focus()}
+  async function readClip(){try{const t=(await navigator.clipboard.readText()||'').trim();if(!t){toast('剪貼簿沒有文字');return null}return t}catch(e){toast('無法讀取剪貼簿，請長按文字框貼上');return null}}
+  async function pasteText(){const t=await readClip();if(t==null)return;set('text',t);toast('已貼上')}
+  async function pasteCopy(){const t=await readClip();if(t==null)return;S.text=t;pushHist();syncUI();await _draw();await copy()}
   function toggleBg(){previewDark=!previewDark;$('edCanvas').classList.toggle('dark',previewDark);$('edCanvas').classList.toggle('light',!previewDark)}
 
   /* UI */
@@ -457,23 +461,24 @@ const ED=(()=>{
     try{await document.fonts.load(fontStr,'永A')}catch(e){}
     const cv=$('cv'),ctx=cv.getContext('2d');ctx.font=fontStr;
     const pad=S.mode==='box'?S.pad:Math.max(S.mode==='stroke'?S.sw:0,S.mode==='shadow'?size*0.15:0)+8;
+    const padX=S.mode==='box'&&S.dir==='h'?pad*3:pad, padY=S.mode==='box'&&S.dir==='v'?pad*3:pad;
     const margin=8;
     let W,H,rects=[];
     if(S.dir==='h'){
       const widths=lines.map(l=>{let w=0;for(const ch of l)w+=ctx.measureText(ch).width+ls;return Math.max(0,w-ls)});
       const maxW=Math.max(1,...widths);
-      W=maxW+pad*2+margin*2;H=lines.length*size*lh+pad*2+margin*2;
+      W=maxW+padX*2+margin*2;H=lines.length*size*lh+padY*2+margin*2;
       cv.width=W*scale;cv.height=H*scale;
       ctx.scale(scale,scale);ctx.font=fontStr;ctx.textBaseline='middle';
       if(S.mode==='box'){ctx.fillStyle=hexa(S.box,S.op);rr(ctx,margin,margin,W-margin*2,H-margin*2,S.rad);ctx.fill()}
-      lines.forEach((l,i)=>{const y=margin+pad+size*lh*(i+0.5);let x=S.align==='c'?(W-widths[i])/2:S.align==='r'?W-margin-pad-widths[i]:margin+pad;for(const ch of l){glyph(ctx,ch,x,y,size);x+=ctx.measureText(ch).width+ls}});
+      lines.forEach((l,i)=>{const y=margin+padY+size*lh*(i+0.5);let x=S.align==='c'?(W-widths[i])/2:S.align==='r'?W-margin-padX-widths[i]:margin+padX;for(const ch of l){glyph(ctx,ch,x,y,size);x+=ctx.measureText(ch).width+ls}});
     }else{
       const lens=lines.map(l=>[...l].length),maxLen=Math.max(1,...lens);
-      const colW=size*lh;W=lines.length*colW+pad*2+margin*2;H=maxLen*(size+ls)-ls+pad*2+margin*2;
+      const colW=size*lh;W=lines.length*colW+padX*2+margin*2;H=maxLen*(size+ls)-ls+padY*2+margin*2;
       cv.width=W*scale;cv.height=H*scale;
       ctx.scale(scale,scale);ctx.font=fontStr;ctx.textBaseline='middle';ctx.textAlign='center';
       if(S.mode==='box'){ctx.fillStyle=hexa(S.box,S.op);rr(ctx,margin,margin,W-margin*2,H-margin*2,S.rad);ctx.fill()}
-      lines.forEach((l,i)=>{const x=W-margin-pad-colW*(i+0.5);const colH=lens[i]*(size+ls)-ls;let y=S.align==='c'?(H-colH)/2+size/2:S.align==='r'?H-margin-pad-colH+size/2:margin+pad+size/2;for(const ch of l){glyph(ctx,ch,x,y,size);y+=size+ls}});
+      lines.forEach((l,i)=>{const x=W-margin-padX-colW*(i+0.5);const colH=lens[i]*(size+ls)-ls;let y=S.align==='c'?(H-colH)/2+size/2:S.align==='r'?H-margin-padY-colH+size/2:margin+padY+size/2;for(const ch of l){glyph(ctx,ch,x,y,size);y+=size+ls}});
       ctx.textAlign='start';
     }
   }
@@ -498,8 +503,8 @@ const ED=(()=>{
   function delDraft(id){if(!confirm('刪除這份草稿？'))return;LS('ed_drafts',(LS('ed_drafts')||[]).filter(d=>d.id!==id));renderDrafts()}
 
   /* init */
-  function init(){renderTpls();renderFonts();syncUI();tab('text');loadImported();draw()}
-  return {init,set,tab,stab,undo,redo,clear,toggleBg,copy,share,draw,applyTpl,fontTab:t=>{fontTab=t;renderFonts()},favFont,delFont,importFonts,openDrafts,closeDrafts,saveDraft,loadDraft,delDraft};
+  function init(){const q=new URLSearchParams(location.search).get('t');if(q){S.text=q;pushHist();history.replaceState(null,'',location.pathname)}renderTpls();renderFonts();syncUI();tab('text');loadImported();draw();if(q){go('font')}}
+  return {init,set,tab,stab,undo,redo,clear,pasteText,pasteCopy,toggleBg,copy,share,draw,applyTpl,fontTab:t=>{fontTab=t;renderFonts()},favFont,delFont,importFonts,openDrafts,closeDrafts,saveDraft,loadDraft,delDraft};
 })();
 /* ---------- 啟動 ---------- */
 renderAll();renderFancy();ED.init();
